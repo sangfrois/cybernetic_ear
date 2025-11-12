@@ -28,7 +28,7 @@ def compute_fisher(model, dataset):
 
     Args:
         model (nn.Module): The policy network.
-        dataset (torch.Tensor): A tensor of states.
+        dataset (torch.Tensor): A tensor of states of shape (batch_size, feature_dim).
 
     Returns:
         dict: A dictionary containing the Fisher Information Matrix for each parameter.
@@ -41,14 +41,24 @@ def compute_fisher(model, dataset):
     model.eval()
     for inputs in dataset:
         model.zero_grad()
+
+        # Ensure input has batch dimension
+        if inputs.dim() == 1:
+            inputs = inputs.unsqueeze(0)
+
         policy = model(inputs)
         log_likelihood = policy.log()
-        
+
         # Sample an action from the policy
         action = torch.multinomial(policy, 1).item()
-        
+
         # Calculate the negative log-likelihood for the sampled action
-        loss = -log_likelihood[0, action]
+        # Handle both batched and single inputs
+        if log_likelihood.dim() == 2:
+            loss = -log_likelihood[0, action]
+        else:
+            loss = -log_likelihood[action]
+
         loss.backward()
 
         for name, param in model.named_parameters():

@@ -163,38 +163,46 @@ class HarmonyStream(BaseStream):
         """
         Calculates the sensory dissonance of an audio buffer based on the Plomp-Levelt model.
         """
-        stft = np.abs(librosa.stft(audio_buffer))
-        total_dissonance = 0
-        n_frames = stft.shape[1]
+        try:
+            stft = np.abs(librosa.stft(audio_buffer))
+            total_dissonance = 0
+            n_frames = stft.shape[1]
+            frames_with_peaks = 0
 
-        for i in range(n_frames):
-            frame = stft[:, i]
-            peaks = librosa.util.peak_pick(frame, pre_max=3, post_max=3, pre_avg=3, post_avg=5, delta=0.5, wait=10)
+            # Sample every 5th frame for performance
+            for i in range(0, n_frames, 5):
+                frame = stft[:, i]
 
-            if len(peaks) < 2:
-                continue
+                # More lenient peak detection
+                peaks = librosa.util.peak_pick(frame, pre_max=2, post_max=2, pre_avg=2, post_avg=3, delta=0.01, wait=5)
 
-            peak_freqs = librosa.fft_frequencies(sr=self.rate, n_fft=(stft.shape[0] - 1) * 2)[peaks]
-            peak_amps = frame[peaks]
+                if len(peaks) < 2:
+                    continue
 
-            # Plomp-Levelt dissonance curve parameters
-            d_max = 1.0
-            s1 = 0.24
-            s2 = 1.48
-            
-            freq_diffs = squareform(pdist(peak_freqs[:, np.newaxis], 'euclidean'))
-            
-            def dissonance(f_diff):
-                return d_max * (np.exp(-s1 * f_diff) - np.exp(-s2 * f_diff))
+                frames_with_peaks += 1
+                peak_freqs = librosa.fft_frequencies(sr=self.rate, n_fft=(stft.shape[0] - 1) * 2)[peaks]
+                peak_amps = frame[peaks]
 
-            dissonance_matrix = dissonance(freq_diffs)
-            
-            amp_products = np.outer(peak_amps, peak_amps)
-            
-            frame_dissonance = np.sum(dissonance_matrix * amp_products) / 2
-            total_dissonance += frame_dissonance
+                # Plomp-Levelt dissonance curve parameters
+                d_max = 1.0
+                s1 = 0.24
+                s2 = 1.48
 
-        return total_dissonance / n_frames if n_frames > 0 else 0.0
+                freq_diffs = squareform(pdist(peak_freqs[:, np.newaxis], 'euclidean'))
+
+                def dissonance(f_diff):
+                    return d_max * (np.exp(-s1 * f_diff) - np.exp(-s2 * f_diff))
+
+                dissonance_matrix = dissonance(freq_diffs)
+                amp_products = np.outer(peak_amps, peak_amps)
+                frame_dissonance = np.sum(dissonance_matrix * amp_products) / 2
+                total_dissonance += frame_dissonance
+
+            result = total_dissonance / frames_with_peaks if frames_with_peaks > 0 else 0.0
+            return float(result)
+        except Exception as e:
+            print(f"Error calculating sensory dissonance: {e}")
+            return 0.0
 
     def process_file(self, audio_buffer: np.ndarray) -> dict:
         """

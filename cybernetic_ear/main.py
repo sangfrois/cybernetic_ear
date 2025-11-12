@@ -87,41 +87,86 @@ def main():
     ]
 
     # --- 3. Start Dashboard ---
-    # print("Starting dashboard in a background thread...")
+    print("Starting dashboard in a background thread...")
     dashboard_thread = threading.Thread(target=run_dashboard)
     dashboard_thread.daemon = True
     dashboard_thread.start()
-    # print("Dashboard is running on http://localhost:5001")
+    print("Dashboard is running on http://localhost:5001")
 
     # --- 4. Start Processing ---
     harmony_stream.start(feature_bus)
     audio_stream.start()
-    
-    # print("\n--- The Cybernetic Ear is now listening ---")
-    # print("Press Ctrl+C to stop.")
+
+    print("\n--- The Cybernetic Ear is now listening ---")
+    print("Press Ctrl+C to stop.")
+
+    # Give dashboard time to start
+    time.sleep(2)
     
     try:
         # Main loop to periodically update the dashboard
+        update_count = 0
         while True:
-            # Update the Cybernetic Core
-            state, attention_weights = agent.get_action(feature_bus)
-            reward = agent.calculate_reward(state, attention_weights, feature_bus)
-            agent.train_step(state, attention_weights, reward)
+            try:
+                # Update the Cybernetic Core
+                state, attention_weights = agent.get_action(feature_bus)
+                reward = agent.calculate_reward(state, attention_weights, feature_bus)
+                agent.train_step(state, attention_weights, reward)
 
-            # Prepare data for the dashboard
-            features = feature_bus.get_all_features()
-            dashboard_data = {
-                'features': features,
-                'agent': {
-                    'attention': attention_weights.detach().numpy().flatten().tolist(),
-                    'reward': reward.detach().item()
-                },
-                'biotuner': features.get('biotuner', {})
-            }
-            
-            # Emit data to the dashboard
-            socketio.emit('update_data', to_json_serializable(dashboard_data))
-            socketio.sleep(1) # Update interval
+                # Prepare data for the dashboard
+                features = feature_bus.get_all_features()
+                agent_state = agent.get_agent_state(feature_bus)
+
+                dashboard_data = {
+                    'features': features,
+                    'agent': {
+                        'attention': attention_weights.detach().numpy().flatten().tolist(),
+                        'fast_attention': agent_state['fast_attention'],
+                        'slow_attention': agent_state['slow_attention'],
+                        'reward': reward.detach().item(),
+                        'reward_components': agent_state['reward_components'],
+                        'stasis_counter': agent_state['stasis_counter'],
+                        'plasticity': agent_state['plasticity'],
+                        'consolidation_count': agent_state['consolidation_count'],
+                        'ewc_active': agent_state['ewc_active']
+                    },
+                    'biotuner': features.get('biotuner', {})
+                }
+
+                # Emit data to the dashboard
+                socketio.emit('update_data', to_json_serializable(dashboard_data))
+
+                # Debug output every 10 updates
+                update_count += 1
+                if update_count % 5 == 0:  # More frequent updates to see behavior
+                    print(f"\n{'='*70}")
+                    print(f"Update #{update_count}")
+                    print(f"  AGENT STATE:")
+                    print(f"    Reward: {reward.item():.3f} (N={agent_state['reward_components']['r_novelty']:.2f}, T={agent_state['reward_components']['r_tension']:.2f}, S={agent_state['reward_components']['r_stasis']:.2f})")
+                    print(f"    Stasis: {agent_state['stasis_counter']}/30 (action_diff={agent_state.get('action_diff', 0):.4f}, state_diff={agent_state.get('state_diff', 0):.4f})")
+                    print(f"    Plasticity: {agent_state['plasticity']:.4f}")
+                    attn = attention_weights.detach().numpy().flatten()
+                    fast_attn = agent_state['fast_attention']
+                    slow_attn = agent_state['slow_attention']
+                    print(f"    Combined Attention: T={attn[0]:.2f} R={attn[1]:.2f} H={attn[2]:.2f}")
+                    print(f"    Fast:  T={fast_attn[0]:.2f} R={fast_attn[1]:.2f} H={fast_attn[2]:.2f}")
+                    print(f"    Slow:  T={slow_attn[0]:.2f} R={slow_attn[1]:.2f} H={slow_attn[2]:.2f}")
+                    print(f"  FEATURES (Energy Check):")
+                    flux = features.get('spectral_flux', 0)
+                    beat = features.get('beat_salience', 0)
+                    density = features.get('event_density', 0)
+                    total_energy = abs(flux) + abs(beat) + abs(density)
+                    print(f"    Total Energy: {total_energy:.3f} (flux={flux:.3f}, beat={beat:.3f}, density={density:.2f})")
+                    print(f"    Harmony: tension={features.get('subharm_tension', 0):.3f} (Δ={features.get('tension_delta', 0):+.3f})")
+                    print(f"{'='*70}")
+
+                socketio.sleep(1) # Update interval
+
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                import traceback
+                traceback.print_exc()
+                socketio.sleep(1)
             
     except KeyboardInterrupt:
         pass

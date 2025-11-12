@@ -3,44 +3,332 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cybernetic Ear Dashboard</title>
+    <title>Cybernetic Ear - Paskian Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; background-color: #1a1a1a; color: #f0f0f0; }
-        .container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 20px; }
-        .card { background-color: #2a2a2a; padding: 20px; border-radius: 8px; }
-        h2 { text-align: center; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #f0f0f0;
+            overflow-x: hidden;
+        }
+
+        header {
+            background: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-bottom: 2px solid #14ffec;
+            text-align: center;
+        }
+
+        h1 {
+            color: #14ffec;
+            font-size: 2em;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .triad-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .streams-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            padding: 0 20px 20px 20px;
+        }
+
+        .card {
+            background: rgba(42, 42, 42, 0.8);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card.glow-red::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #ff0844, transparent);
+            animation: glow-pulse 2s ease-in-out infinite;
+        }
+
+        .card.glow-cyan::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #14ffec, transparent);
+            animation: glow-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes glow-pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        .card h2 {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            color: #14ffec;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .metric-label {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .metric-value {
+            color: #14ffec;
+            font-weight: bold;
+        }
+
+        .boredom-meter {
+            width: 100%;
+            height: 30px;
+            background: #1a1a1a;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 10px;
+            border: 1px solid #333;
+        }
+
+        .boredom-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #14ffec, #ff0844);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+
+        .plasticity-indicator {
+            text-align: center;
+            padding: 20px;
+            font-size: 2em;
+            font-weight: bold;
+            color: #14ffec;
+            text-shadow: 0 0 20px #14ffec;
+        }
+
+        .attention-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .attention-bar {
+            background: #1a1a1a;
+            border-radius: 5px;
+            padding: 5px;
+            border: 1px solid #333;
+        }
+
+        .attention-label {
+            font-size: 0.8em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .stream-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            margin: 2px;
+        }
+
+        .timbre { background: rgba(75, 192, 192, 0.3); border: 1px solid rgba(75, 192, 192, 0.6); }
+        .rhythm { background: rgba(255, 159, 64, 0.3); border: 1px solid rgba(255, 159, 64, 0.6); }
+        .harmony { background: rgba(153, 102, 255, 0.3); border: 1px solid rgba(153, 102, 255, 0.6); }
+
+        canvas {
+            max-height: 200px;
+        }
+
+        .consolidation-badge {
+            display: inline-block;
+            background: rgba(255, 8, 68, 0.2);
+            border: 1px solid #ff0844;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <h2>Timbre Stream</h2>
-            <canvas id="timbreChart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Rhythm Stream</h2>
-            <canvas id="rhythmChart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Harmony Stream</h2>
-            <canvas id="harmonyChart"></canvas>
-            <canvas id="harmsimChart"></canvas>
-            <canvas id="tenneyChart"></canvas>
-            <canvas id="subharmChart"></canvas>
-        </div>
-        <div class="card" style="grid-column: span 3;">
-            <h2>Cybernetic Core</h2>
-            <div style="display: flex; justify-content: space-around;">
-                <div style="width: 45%;">
-                    <h3>Agent Attention</h3>
-                    <canvas id="attentionChart"></canvas>
+    <header>
+        <h1>⚡ The Cybernetic Ear ⚡</h1>
+        <div class="subtitle">Paskian Conversation Theory in Action</div>
+    </header>
+
+    <!-- PASKIAN TRIAD -->
+    <div class="triad-container">
+        <!-- CONVERSATION -->
+        <div class="card" id="conversationCard">
+            <h2>💬 Conversation</h2>
+            <div style="height: 200px;">
+                <canvas id="attentionChart"></canvas>
+            </div>
+            <div class="attention-comparison">
+                <div class="attention-bar">
+                    <div class="attention-label">Fast Network</div>
+                    <div id="fastAttention"></div>
                 </div>
-                <div style="width: 45%;">
-                    <h3>Reward Signal</h3>
-                    <canvas id="rewardChart"></canvas>
+                <div class="attention-bar">
+                    <div class="attention-label">Slow Network</div>
+                    <div id="slowAttention"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- BOREDOM -->
+        <div class="card" id="boredomCard">
+            <h2>😴 Boredom (EWC)</h2>
+            <div class="metric">
+                <span class="metric-label">Stasis Counter</span>
+                <span class="metric-value" id="stasisCounter">0</span>
+            </div>
+            <div class="boredom-meter">
+                <div class="boredom-fill" id="boredomFill" style="width: 0%;">0%</div>
+            </div>
+            <div class="consolidation-badge" id="consolidationBadge">
+                <strong>Consolidations:</strong> <span id="consolidationCount">0</span>
+            </div>
+            <div style="margin-top: 20px; height: 150px;">
+                <canvas id="rewardChart"></canvas>
+            </div>
+        </div>
+
+        <!-- INTEREST -->
+        <div class="card" id="interestCard">
+            <h2>🎯 Interest (Plasticity)</h2>
+            <div class="plasticity-indicator" id="plasticityValue">0.000</div>
+            <div style="height: 150px;">
+                <canvas id="rewardComponentsChart"></canvas>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Novelty</span>
+                <span class="metric-value" id="rNovelty">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Tension</span>
+                <span class="metric-value" id="rTension">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Stasis</span>
+                <span class="metric-value" id="rStasis">0.00</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- THREE STREAMS -->
+    <div class="streams-container">
+        <!-- TIMBRE -->
+        <div class="card">
+            <h2>🎨 Timbre Stream</h2>
+            <div class="metric">
+                <span class="metric-label">Spectral Centroid</span>
+                <span class="metric-value" id="spectralCentroid">0</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Spectral Flatness</span>
+                <span class="metric-value" id="spectralFlatness">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Spectral Rolloff</span>
+                <span class="metric-value" id="spectralRolloff">0</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Spectral Flux</span>
+                <span class="metric-value" id="spectralFlux">0.00</span>
+            </div>
+            <div style="margin-top: 15px; height: 120px;">
+                <canvas id="timbreChart"></canvas>
+            </div>
+        </div>
+
+        <!-- RHYTHM -->
+        <div class="card">
+            <h2>🥁 Rhythm Stream</h2>
+            <div class="metric">
+                <span class="metric-label">Beat Salience</span>
+                <span class="metric-value" id="beatSalience">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Syncopation Index</span>
+                <span class="metric-value" id="syncopationIndex">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Groove Pattern</span>
+                <span class="metric-value" id="groovePattern">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Event Density</span>
+                <span class="metric-value" id="eventDensity">0.00</span>
+            </div>
+            <div style="margin-top: 15px; height: 120px;">
+                <canvas id="rhythmChart"></canvas>
+            </div>
+        </div>
+
+        <!-- HARMONY -->
+        <div class="card">
+            <h2>🎵 Harmony Stream</h2>
+            <div class="metric">
+                <span class="metric-label">Subharmonic Tension</span>
+                <span class="metric-value" id="subharmonicTension">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">↳ Tension Δ (Transitional)</span>
+                <span class="metric-value" id="tensionDelta" style="color: #ff0844;">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Harmonic Similarity</span>
+                <span class="metric-value" id="harmonicSimilarity">0.00</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">↳ Harmsim Δ (Transitional)</span>
+                <span class="metric-value" id="harmsimDelta" style="color: #ff0844;">0.00</span>
+            </div>
+            <div style="margin-top: 15px; height: 120px;">
+                <canvas id="tonalContextChart"></canvas>
             </div>
         </div>
     </div>
@@ -48,101 +336,248 @@
     <script>
         const socket = io.connect('http://' + document.domain + ':' + 5001);
 
-        // --- Chart Initialization ---
-        const createChart = (ctx, type, data, options) => new Chart(ctx, { type, data, options });
-
-        const timbreChart = createChart(document.getElementById('timbreChart').getContext('2d'), 'bar', {
-            labels: ['Centroid', 'Flatness', 'Rolloff', 'Flux'],
-            datasets: [{ label: 'Value', data: [0, 0, 0, 0], backgroundColor: 'rgba(75, 192, 192, 0.6)' }]
+        socket.on('connect', function() {
+            console.log('✅ Connected to Cybernetic Ear');
         });
 
-        const rhythmChart = createChart(document.getElementById('rhythmChart').getContext('2d'), 'bar', {
-            labels: ['Beat Salience', 'Syncopation', 'Event Density'],
-            datasets: [{ label: 'Value', data: [0, 0, 0], backgroundColor: 'rgba(255, 159, 64, 0.6)' }]
+        socket.on('disconnect', function() {
+            console.log('❌ Disconnected from Cybernetic Ear');
         });
 
-        const harmonyChart = createChart(document.getElementById('harmonyChart').getContext('2d'), 'radar', {
-            labels: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
-            datasets: [{ label: 'Tonal Context', data: Array(12).fill(0), backgroundColor: 'rgba(153, 102, 255, 0.6)' }]
+        socket.on('connect_error', function(error) {
+            console.error('Connection error:', error);
         });
 
-        const harmsimChart = createChart(document.getElementById('harmsimChart').getContext('2d'), 'line', {
-            labels: Array(50).fill(''),
-            datasets: [{ label: 'Harmonic Similarity', data: Array(50).fill(0), borderColor: 'rgba(255, 206, 86, 0.6)', fill: false }]
+        // Chart configurations
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#888' } },
+                x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#888' } }
+            }
+        };
+
+        // Attention Pie Chart
+        const attentionChart = new Chart(document.getElementById('attentionChart').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Timbre', 'Rhythm', 'Harmony'],
+                datasets: [{
+                    data: [33, 33, 34],
+                    backgroundColor: ['rgba(75, 192, 192, 0.8)', 'rgba(255, 159, 64, 0.8)', 'rgba(153, 102, 255, 0.8)'],
+                    borderColor: '#1a1a1a',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#888' } }
+                }
+            }
         });
 
-        const tenneyChart = createChart(document.getElementById('tenneyChart').getContext('2d'), 'line', {
-            labels: Array(50).fill(''),
-            datasets: [{ label: 'Tenney Height', data: Array(50).fill(0), borderColor: 'rgba(54, 162, 235, 0.6)', fill: false }]
+        // Reward History Chart
+        const rewardChart = new Chart(document.getElementById('rewardChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: Array(50).fill(''),
+                datasets: [{
+                    label: 'Total Reward',
+                    data: Array(50).fill(0),
+                    borderColor: '#14ffec',
+                    backgroundColor: 'rgba(20, 255, 236, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: chartOptions
         });
 
-        const subharmChart = createChart(document.getElementById('subharmChart').getContext('2d'), 'line', {
-            labels: Array(50).fill(''),
-            datasets: [{ label: 'Subharmonic Tension', data: Array(50).fill(0), borderColor: 'rgba(255, 99, 132, 0.6)', fill: false }]
+        // Reward Components Chart
+        const rewardComponentsChart = new Chart(document.getElementById('rewardComponentsChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Novelty', 'Tension', 'Stasis'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: ['rgba(20, 255, 236, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 8, 68, 0.6)']
+                }]
+            },
+            options: chartOptions
         });
 
-        const attentionChart = createChart(document.getElementById('attentionChart').getContext('2d'), 'pie', {
-            labels: ['Timbre', 'Rhythm', 'Harmony'],
-            datasets: [{ data: [33, 33, 34], backgroundColor: ['rgba(75, 192, 192, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(153, 102, 255, 0.6)'] }]
+        // Stream Charts
+        const timbreChart = new Chart(document.getElementById('timbreChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: Array(30).fill(''),
+                datasets: [{
+                    label: 'Spectral Flux',
+                    data: Array(30).fill(0),
+                    borderColor: 'rgba(75, 192, 192, 0.8)',
+                    fill: false,
+                    tension: 0.3
+                }]
+            },
+            options: chartOptions
         });
 
-        const rewardChart = createChart(document.getElementById('rewardChart').getContext('2d'), 'line', {
-            labels: Array(50).fill(''),
-            datasets: [{ label: 'Reward', data: Array(50).fill(0), borderColor: 'rgba(255, 99, 132, 0.6)', fill: false }]
+        const rhythmChart = new Chart(document.getElementById('rhythmChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: Array(30).fill(''),
+                datasets: [{
+                    label: 'Event Density',
+                    data: Array(30).fill(0),
+                    borderColor: 'rgba(255, 159, 64, 0.8)',
+                    fill: false,
+                    tension: 0.3
+                }]
+            },
+            options: chartOptions
         });
 
-        // --- Socket.IO Event Listener ---
+        const tonalContextChart = new Chart(document.getElementById('tonalContextChart').getContext('2d'), {
+            type: 'radar',
+            data: {
+                labels: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
+                datasets: [{
+                    label: 'Tonal Context',
+                    data: Array(12).fill(0),
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    borderColor: 'rgba(153, 102, 255, 0.8)',
+                    pointBackgroundColor: 'rgba(153, 102, 255, 0.8)',
+                    pointBorderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        angleLines: { color: 'rgba(255,255,255,0.1)' },
+                        pointLabels: { color: '#888', font: { size: 10 } },
+                        ticks: { display: false }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Socket.IO Update Handler
         socket.on('update_data', function(data) {
-            // Timbre Chart
-            timbreChart.data.datasets[0].data = [
-                data.features.spectral_centroid,
-                data.features.spectral_flatness,
-                data.features.spectral_rolloff,
-                data.features.spectral_flux
-            ];
-            timbreChart.update();
-
-            // Rhythm Chart
-            rhythmChart.data.datasets[0].data = [
-                data.features.beat_salience,
-                data.features.syncopation_index,
-                data.features.event_density
-            ];
-            rhythmChart.update();
-
-            // Harmony Chart
-            if (data.features.tonal_context) {
-                harmonyChart.data.datasets[0].data = data.features.tonal_context.slice(0, 12); // Just major keys for now
-                harmonyChart.update();
-            }
-
-            // New Harmony Charts
-            if (data.features.harmsim) {
-                harmsimChart.data.datasets[0].data.push(data.features.harmsim);
-                harmsimChart.data.datasets[0].data.shift();
-                harmsimChart.update();
-            }
-            if (data.features.tenney_height) {
-                tenneyChart.data.datasets[0].data.push(data.features.tenney_height);
-                tenneyChart.data.datasets[0].data.shift();
-                tenneyChart.update();
-            }
-            if (data.features.subharm_tension) {
-                subharmChart.data.datasets[0].data.push(data.features.subharm_tension);
-                subharmChart.data.datasets[0].data.shift();
-                subharmChart.update();
-            }
-
-            // Attention Chart
+            // Update Attention
             if (data.agent.attention) {
                 attentionChart.data.datasets[0].data = data.agent.attention;
-                attentionChart.update();
+                attentionChart.update('none');
             }
 
-            // Reward Chart
-            rewardChart.data.datasets[0].data.push(data.agent.reward);
-            rewardChart.data.datasets[0].data.shift();
-            rewardChart.update();
+            // Update Fast/Slow Attention
+            if (data.agent.fast_attention) {
+                const fastHTML = data.agent.fast_attention.map((v, i) =>
+                    `<span class="stream-badge ${['timbre', 'rhythm', 'harmony'][i]}">${(v * 100).toFixed(1)}%</span>`
+                ).join('');
+                document.getElementById('fastAttention').innerHTML = fastHTML;
+            }
+            if (data.agent.slow_attention) {
+                const slowHTML = data.agent.slow_attention.map((v, i) =>
+                    `<span class="stream-badge ${['timbre', 'rhythm', 'harmony'][i]}">${(v * 100).toFixed(1)}%</span>`
+                ).join('');
+                document.getElementById('slowAttention').innerHTML = slowHTML;
+            }
+
+            // Update Boredom
+            const stasisCounter = data.agent.stasis_counter || 0;
+            const boredomPercent = Math.min(100, (stasisCounter / 30) * 100);
+            document.getElementById('stasisCounter').textContent = stasisCounter;
+            document.getElementById('boredomFill').style.width = boredomPercent + '%';
+            document.getElementById('boredomFill').textContent = boredomPercent.toFixed(0) + '%';
+            document.getElementById('consolidationCount').textContent = data.agent.consolidation_count || 0;
+
+            // Glow effect when approaching consolidation
+            const boredomCard = document.getElementById('boredomCard');
+            if (boredomPercent > 70) {
+                boredomCard.classList.add('glow-red');
+            } else {
+                boredomCard.classList.remove('glow-red');
+            }
+
+            // Update Plasticity
+            const plasticity = data.agent.plasticity || 0;
+            document.getElementById('plasticityValue').textContent = plasticity.toFixed(3);
+
+            // Glow effect when high plasticity
+            const interestCard = document.getElementById('interestCard');
+            if (plasticity > 0.5) {
+                interestCard.classList.add('glow-cyan');
+            } else {
+                interestCard.classList.remove('glow-cyan');
+            }
+
+            // Update Reward Components
+            if (data.agent.reward_components) {
+                const rc = data.agent.reward_components;
+                document.getElementById('rNovelty').textContent = rc.r_novelty.toFixed(2);
+                document.getElementById('rTension').textContent = rc.r_tension.toFixed(2);
+                document.getElementById('rStasis').textContent = rc.r_stasis.toFixed(2);
+
+                rewardComponentsChart.data.datasets[0].data = [rc.r_novelty, rc.r_tension, rc.r_stasis];
+                rewardComponentsChart.update('none');
+
+                // Update reward history
+                rewardChart.data.datasets[0].data.push(rc.total_reward);
+                rewardChart.data.datasets[0].data.shift();
+                rewardChart.update('none');
+            }
+
+            // Update Timbre Metrics
+            document.getElementById('spectralCentroid').textContent = (data.features.spectral_centroid || 0).toFixed(0);
+            document.getElementById('spectralFlatness').textContent = (data.features.spectral_flatness || 0).toFixed(3);
+            document.getElementById('spectralRolloff').textContent = (data.features.spectral_rolloff || 0).toFixed(0);
+            document.getElementById('spectralFlux').textContent = (data.features.spectral_flux || 0).toFixed(3);
+
+            timbreChart.data.datasets[0].data.push(data.features.spectral_flux || 0);
+            timbreChart.data.datasets[0].data.shift();
+            timbreChart.update('none');
+
+            // Update Rhythm Metrics
+            document.getElementById('beatSalience').textContent = (data.features.beat_salience || 0).toFixed(3);
+            document.getElementById('syncopationIndex').textContent = (data.features.syncopation_index || 0).toFixed(3);
+            document.getElementById('groovePattern').textContent = (data.features.groove_pattern || 0).toFixed(3);
+            document.getElementById('eventDensity').textContent = (data.features.event_density || 0).toFixed(3);
+
+            rhythmChart.data.datasets[0].data.push(data.features.event_density || 0);
+            rhythmChart.data.datasets[0].data.shift();
+            rhythmChart.update('none');
+
+            // Update Harmony Metrics
+            document.getElementById('subharmonicTension').textContent = (data.features.subharm_tension || 0).toFixed(3);
+            document.getElementById('harmonicSimilarity').textContent = (data.features.harmsim || 0).toFixed(3);
+
+            // Update Transitional Metrics (deltas)
+            const tensionDelta = data.features.tension_delta || 0;
+            const harmsimDelta = data.features.harmsim_delta || 0;
+
+            // Color code deltas: green for negative (resolution), red for positive (tension rising)
+            const tensionDeltaEl = document.getElementById('tensionDelta');
+            tensionDeltaEl.textContent = (tensionDelta >= 0 ? '+' : '') + tensionDelta.toFixed(3);
+            tensionDeltaEl.style.color = tensionDelta > 0 ? '#ff0844' : '#14ffec';
+
+            const harmsimDeltaEl = document.getElementById('harmsimDelta');
+            harmsimDeltaEl.textContent = (harmsimDelta >= 0 ? '+' : '') + harmsimDelta.toFixed(3);
+            harmsimDeltaEl.style.color = harmsimDelta > 0 ? '#14ffec' : '#ff0844';
+
+            // Update Tonal Context Radar
+            if (data.features.tonal_context) {
+                tonalContextChart.data.datasets[0].data = data.features.tonal_context.slice(0, 12);
+                tonalContextChart.update('none');
+            }
         });
     </script>
 </body>

@@ -43,11 +43,14 @@ class RhythmStream(BaseStream):
             
             self.tempo, beat_frames = librosa.beat.beat_track(y=buffer, sr=self.rate, units='frames')
             self.beats = librosa.frames_to_time(beat_frames, sr=self.rate)
-            
+
             onset_frames = librosa.onset.onset_detect(y=buffer, sr=self.rate, units='time')
             self.onsets = onset_frames
 
-            feature_bus.update_feature("beat_salience", 1.0 if self.tempo > 0 else 0.0)
+            # Calculate beat salience based on onset strength
+            onset_env = librosa.onset.onset_strength(y=buffer, sr=self.rate)
+            beat_salience = float(np.mean(onset_env)) if len(onset_env) > 0 else 0.0
+            feature_bus.update_feature("beat_salience", beat_salience)
 
             duration = len(buffer) / self.rate
             event_density = len(self.onsets) / duration if duration > 0 else 0
