@@ -31,8 +31,12 @@ def biotuner_realtime(
             n_peaks=n_peaks,
             smooth_fft=1,
         )
-    except UnboundLocalError:
-        raise RuntimeError("No peaks found. Try increasing the length of the signal.")
+    except (UnboundLocalError, ValueError):
+        # Return empty or default values if no peaks are found
+        default_metrics = {'subharm_tension': [np.nan], 'harmsim': np.nan, 'tenney': np.nan}
+        default_biotuner_data = {'ratios': [], 'interpretation_cues': 'No peaks found.'}
+        return [], [], default_metrics, [], [0, 1], [], [], default_biotuner_data
+
 
     try:
         # try computing the extended peaks

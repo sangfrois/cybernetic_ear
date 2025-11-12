@@ -70,27 +70,50 @@ class TimbreAutoencoder(nn.Module):
 
 import os
 
+
+
 class TimbreStream(BaseStream):
+
     """
+
     Analyzes the timbral and spectral features of the audio stream.
+
     """
+
     def __init__(self, rate=22050, chunk_size=2048):
+
         self.rate = rate
+
         self.chunk_size = chunk_size
+
         self.prev_spectrum = None
+
         self.cnn_model = TimbreAutoencoder(chunk_size=self.chunk_size)
+
         
+
         model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'core', 'timbre_cnn.pth'))
+
         if os.path.exists(model_path):
+
             self.cnn_model.load_state_dict(torch.load(model_path))
+
             self.cnn_model.eval()
+
             print("Loaded pre-trained TimbreAutoencoder model.")
+
         else:
+
             print("Warning: Pre-trained TimbreAutoencoder model not found. Using an untrained model.")
 
+
+
     def process_chunk(self, chunk, feature_bus):
+
         """
+
         Processes a chunk to extract timbral features and updates the feature bus.
+
         """
         if chunk.dtype != np.float32:
             chunk = chunk.astype(np.float32)

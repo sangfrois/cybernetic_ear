@@ -6,41 +6,97 @@ from scipy.spatial.distance import pdist, squareform
 from biotuner.biotuner_object import compute_biotuner as Biotuner
 import torch
 from cybernetic_ear.core.biotuner_object import biotuner_realtime
+import threading
+import queue
 
 class HarmonyStream(BaseStream):
     """
-    Analyzes the harmonic and tensional features of the audio stream,
-    as described in the paper.md, using the Biotuner submodule.
+    Analyzes the harmonic and tensional features of the audio stream in a separate thread
+    to avoid blocking the main audio processing pipeline.
     """
-    def __init__(self, rate=22050, buffer_size_seconds=4, enabled=True):
+    def __init__(self, rate=22050, buffer_size_seconds=4, biotuner_enabled=True):
         self.rate = rate
         self.buffer_size = rate * buffer_size_seconds
         self.audio_buffer = np.array([], dtype=np.float32)
-        self.enabled = enabled
-        # self.biotuner = Biotuner(self.rate) # No longer needed as biotuner_realtime handles instantiation
+        self.biotuner_enabled = biotuner_enabled
+
+        self.chunk_queue = queue.Queue()
+        self.stop_event = threading.Event()
+        self.processing_thread = threading.Thread(target=self._process_loop)
+
+        self.biotuner_update_interval = 10
+        self.frame_count = 0
+        self.last_biotuner_features = {}
+
+        self.dissonance_update_interval = 5
+        self.dissonance_frame_count = 0
+        self.last_sensory_dissonance = 0.0
+
+        self.tonal_context_update_interval = 5
+        self.tonal_context_frame_count = 0
+        self.last_tonal_context = np.zeros(24)
+
+    def start(self, feature_bus):
+        self.feature_bus = feature_bus
+        self.processing_thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        self.processing_thread.join()
+
+    def _process_loop(self):
+        while not self.stop_event.is_set():
+            try:
+                chunk = self.chunk_queue.get(timeout=1)
+                self.process_chunk_threaded(chunk)
+            except queue.Empty:
+                continue
 
     def process_chunk(self, chunk, feature_bus):
         """
-        Processes a chunk to extract harmonic features and updates the feature bus.
-        This stream is stateful and processes audio in larger buffered segments.
+        This method is called from the main audio thread.
+        It puts the chunk into a queue for background processing.
         """
-        if not self.enabled:
-            return
+        self.chunk_queue.put(chunk)
+
+    def process_chunk_threaded(self, chunk):
+        """
+        This method runs in the background thread to process audio chunks.
+        """
         self.audio_buffer = np.concatenate((self.audio_buffer, chunk))
+        self.frame_count += 1
 
         if len(self.audio_buffer) >= self.buffer_size:
             buffer = self.audio_buffer
 
             # --- Sensory Dissonance (Plomp-Levelt) ---
-            sensory_dissonance = self.calculate_sensory_dissonance(buffer)
-            feature_bus.update_feature("sensory_dissonance", sensory_dissonance)
+            self.dissonance_frame_count += 1
+            if self.dissonance_frame_count >= self.dissonance_update_interval:
+                sensory_dissonance = self.calculate_sensory_dissonance(buffer)
+                self.last_sensory_dissonance = sensory_dissonance
+                self.dissonance_frame_count = 0
+            else:
+                sensory_dissonance = self.last_sensory_dissonance
+            self.feature_bus.update_feature("sensory_dissonance", sensory_dissonance)
 
             # --- Tonal Context (Krumhansl-Schmuckler) ---
-            tonal_context = self.calculate_tonal_context(buffer)
-            feature_bus.update_feature("tonal_context", tonal_context)
+            self.tonal_context_frame_count += 1
+            if self.tonal_context_frame_count >= self.tonal_context_update_interval:
+                tonal_context = self.calculate_tonal_context(buffer)
+                self.last_tonal_context = tonal_context
+                self.tonal_context_frame_count = 0
+            else:
+                tonal_context = self.last_tonal_context
+            self.feature_bus.update_feature("tonal_context", tonal_context)
 
             # --- Advanced Harmonic Analysis (Biotuner) ---
-            self.run_biotuner_analysis(buffer, feature_bus)
+            if self.biotuner_enabled:
+                if self.frame_count >= self.biotuner_update_interval:
+                    self.run_biotuner_analysis(buffer, self.feature_bus)
+                    self.frame_count = 0  # Reset counter
+                else:
+                    for key, value in self.last_biotuner_features.items():
+                        self.feature_bus.update_feature(key, value)
 
             # Slide the buffer window
             self.audio_buffer = self.audio_buffer[len(chunk):]
@@ -53,27 +109,31 @@ class HarmonyStream(BaseStream):
             peaks, extended_peaks, metrics, tuning, harm_tuning, amps, extended_amps = biotuner_realtime(
                 audio_buffer,
                 self.rate,
-                n_peaks=10,
+                n_peaks=5,
                 peaks_function="harmonic_recurrence", # More suitable for audio
-                min_freq=20, # Audible range
-                max_freq=10000, # Audible range
-                precision=0.1,
+                min_freq=100, # Audible range
+                max_freq=5000, # Reduced for performance
+                precision=0.5,
                 n_harm_extended=3,
                 n_harm_subharm=3,
                 delta_lim=250,
             )
             
             # Update feature bus with all relevant metrics
-            feature_bus.update_feature("harmsim", metrics["harmsim"])
-            feature_bus.update_feature("tenney_height", metrics["tenney"])
-            feature_bus.update_feature("subharm_tension", metrics["subharm_tension"][0])
-            feature_bus.update_feature("consonance", metrics["cons"])
-            feature_bus.update_feature("peaks_ratios_tuning", tuning)
-            feature_bus.update_feature("harm_tuning", harm_tuning)
-            feature_bus.update_feature("peaks", peaks)
-            feature_bus.update_feature("amps", amps)
-            feature_bus.update_feature("extended_peaks", extended_peaks)
-            feature_bus.update_feature("extended_amps", extended_amps)
+            self.last_biotuner_features = {
+                "harmsim": metrics["harmsim"],
+                "tenney_height": metrics["tenney"],
+                "subharm_tension": metrics["subharm_tension"][0],
+                "consonance": metrics["cons"],
+                "peaks_ratios_tuning": tuning,
+                "harm_tuning": harm_tuning,
+                "peaks": peaks,
+                "amps": amps,
+                "extended_peaks": extended_peaks,
+                "extended_amps": extended_amps,
+            }
+            for key, value in self.last_biotuner_features.items():
+                feature_bus.update_feature(key, value)
 
         except Exception as e:
             print(f"Error in Biotuner analysis: {e}")

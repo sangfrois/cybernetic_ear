@@ -3,7 +3,7 @@ import os
 import argparse
 
 import warnings
-warnings.filterwarnings("ignore", message="The `fooof` package is being deprecated")
+warnings.filterwarnings("ignore")
 
 from .dashboard.dashboard import run_dashboard, socketio
 import threading
@@ -44,21 +44,21 @@ def main():
     Initializes and connects all the components, then runs the main loop.
     """
     parser = argparse.ArgumentParser(description="Cybernetic Ear: Real-time audio analysis.")
-    parser.add_argument('--disable-harmony', action='store_true', help="Disable the harmony analysis stream.")
+    parser.add_argument('--disable-biotuner', action='store_true', help="Disable the Biotuner analysis in the harmony stream.")
     args = parser.parse_args()
 
     torch.autograd.set_detect_anomaly(True)
     # --- 0. Startup Message ---
-    print("=============================================")
-    print("=         Cybernetic Ear - Real-Time Run      =")
-    print("=============================================")
-    print("This script tests the real-time feature extraction pipeline.")
+    # print("=============================================")
+    # print("=         Cybernetic Ear - Real-Time Run      =")
+    # print("=============================================")
+    # print("This script tests the real-time feature extraction pipeline.")
 
     # --- Pre-flight check: List audio devices ---
-    AudioStream.list_devices()
+    # AudioStream.list_devices()
 
     # --- 1. Initialization ---
-    print("\nInitializing the Cybernetic Ear...")
+    # print("\nInitializing the Cybernetic Ear...")
     
     # Configuration
     SAMPLE_RATE = 22050
@@ -71,13 +71,13 @@ def main():
     # Instantiate feature processing streams
     timbre_stream = TimbreStream(rate=SAMPLE_RATE, chunk_size=CHUNK_SIZE)
     rhythm_stream = RhythmStream(rate=SAMPLE_RATE, buffer_size_seconds=5) 
-    harmony_stream = HarmonyStream(rate=SAMPLE_RATE, buffer_size_seconds=4, enabled=not args.disable_harmony)
+    harmony_stream = HarmonyStream(rate=SAMPLE_RATE, buffer_size_seconds=5, biotuner_enabled=not args.disable_biotuner)
 
     # Instantiate the Cybernetic Core
     agent = PaskianTriadAgent()
 
     # --- 2. Connect Components ---
-    print("Connecting components...")
+    # print("Connecting components...")
     
     # The feature bus is passed to each callback, so they all update the same object.
     audio_stream.callbacks = [
@@ -87,17 +87,18 @@ def main():
     ]
 
     # --- 3. Start Dashboard ---
-    print("Starting dashboard in a background thread...")
+    # print("Starting dashboard in a background thread...")
     dashboard_thread = threading.Thread(target=run_dashboard)
     dashboard_thread.daemon = True
     dashboard_thread.start()
-    print("Dashboard is running on http://localhost:5001")
+    # print("Dashboard is running on http://localhost:5001")
 
     # --- 4. Start Processing ---
+    harmony_stream.start(feature_bus)
     audio_stream.start()
     
-    print("\n--- The Cybernetic Ear is now listening ---")
-    print("Press Ctrl+C to stop.")
+    # print("\n--- The Cybernetic Ear is now listening ---")
+    # print("Press Ctrl+C to stop.")
     
     try:
         # Main loop to periodically update the dashboard
@@ -108,12 +109,14 @@ def main():
             agent.train_step(state, attention_weights, reward)
 
             # Prepare data for the dashboard
+            features = feature_bus.get_all_features()
             dashboard_data = {
-                'features': feature_bus.get_all_features(),
+                'features': features,
                 'agent': {
                     'attention': attention_weights.detach().numpy().flatten().tolist(),
                     'reward': reward.detach().item()
-                }
+                },
+                'biotuner': features.get('biotuner', {})
             }
             
             # Emit data to the dashboard
@@ -121,14 +124,17 @@ def main():
             socketio.sleep(1) # Update interval
             
     except KeyboardInterrupt:
-        print("\nShutdown signal received.")
+        pass
+        # print("\nShutdown signal received.")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        pass
+        # print(f"An unexpected error occurred: {e}")
     finally:
         # --- 5. Cleanup ---
-        print("Stopping all streams and cleaning up.")
+        # print("Stopping all streams and cleaning up.")
+        harmony_stream.stop()
         audio_stream.stop()
-        print("Cybernetic Ear has been shut down.")
+        # print("Cybernetic Ear has been shut down.")
 
 
 if __name__ == '__main__':
