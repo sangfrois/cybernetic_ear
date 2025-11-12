@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# PyTorch
+*.pth
+*.pt
+
+# Project-specific
+session_log.json
+.vscode/
+*.wav
+*.mp3
+*.png
+
+biotuner/
+biotuner_submodule/
+chan2019_transitionalharmony/
+tests/
+analysis/
+cybernetic_ear/
+requirements.txt
+GEMINI.md
+paper.md
+Biotuner_chapter_2024_Organised_Sound.md
